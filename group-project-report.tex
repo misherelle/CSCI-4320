@@ -1,0 +1,272 @@
+\documentclass[11pt]{article}
+\textwidth 6.3in
+\usepackage[utf8]{inputenc}
+\usepackage{datetime}
+\usepackage{enumerate}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{forest}
+\usepackage{color,array,graphics}
+\usepackage[pdftex, colorlinks, linkcolor=red,citecolor=red,urlcolor=blue]{hyperref}
+\usepackage{ulem}
+\usepackage{listings}
+\usepackage{centernot}
+\usetikzlibrary{positioning,shadows,arrows}
+
+\setlength{\parindent}{0cm}
+\setlength{\parskip}{0.3cm plus4mm minus3mm}
+
+\textwidth  6.5in
+\oddsidemargin +0.0in
+\evensidemargin +0.0in
+\textheight 9.0in
+\topmargin -0.5in
+
+\usepackage{upquote,textcomp}
+\usepackage{amssymb,amsmath,amsfonts,amsthm}
+\usepackage{graphicx}
+\usepackage{multicol}
+\usepackage{tikz-cd}
+\usetikzlibrary{automata,positioning}
+\usepackage{tikz-qtree}
+\usepackage{array}
+
+\begin{document}
+\thispagestyle{empty}
+
+\title{\textbf{Parallel Programming and Computing: Group Project}}
+
+\author{
+Angela Imanuel (imanua) \\
+Michael Lam (lamm3) \\
+Dillon Li (lih40) \\
+Michelle Li (lim31) \\
+\\
+CSCI-4320: Parallel Programming and Computing \\
+Professor Christopher D. Carothers
+}
+
+\date{Due Date: April 29, 2026}
+
+\maketitle
+
+\begin{abstract}
+This project implements a massively parallel, Pokemon-themed battle territory simulation inspired by Conway's Game of Life. Each cell in a two-dimensional grid stores one of the 18 Pokemon elemental types, and each timestep updates territory ownership based on local neighbor support, type-effectiveness matchups, and rare pattern-triggered evolution events. The serial core defines the simulation rules and correctness tests, while the MPI version partitions the grid by rows and exchanges ghost rows at every iteration so that boundary cells are updated using neighboring rank data. The final project evaluates correctness, communication cost, computation cost, strong scaling, and weak scaling on AiMOS.
+\end{abstract}
+
+\begin{enumerate}
+
+\item \section*{Introduction}
+
+Our group built a Pokemon-themed battle territory simulation to study stencil-like parallel computation with nontrivial local interaction. The simulation is based on a two-dimensional cellular automaton, but instead of a binary alive/dead state, each cell stores one of the 18 official Pokemon types. At every timestep, nearby cells compete for control of the center cell using the Pokemon type-effectiveness chart, where attacks may have no effect, be not very effective, be normally effective, or be super effective.
+
+This project fits the parallel programming goals of the course because each cell update depends on neighboring cells. The work is therefore not embarrassingly parallel: when the grid is split across MPI ranks, ranks must exchange halo rows before each update. Our implementation separates the serial simulation logic from the parallel execution layer so that correctness can be established first and then reused by MPI and future CUDA versions.
+
+\item \section*{Code Review and Build Instructions}
+
+The codebase is organized around a serial core, an MPI driver, correctness tests, and AiMOS run scripts.
+
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{File} & \textbf{Purpose} \\
+\hline
+\texttt{pokemon\_battle\_core.h/c} & Type IDs, effectiveness matrix, grid helpers, update rules \\
+\texttt{pokemon\_battle\_tests.c} & Serial correctness tests for rules and the full type chart \\
+\texttt{pokemon\_battle\_demo.c} & Small serial visualization/demo runner \\
+\texttt{pokemon\_battle\_mpi.c} & MPI row decomposition, halo exchange, timing, serial check \\
+\texttt{Makefile} & Build and test targets \\
+\texttt{run\_strong\_scaling\_aimos.slurm} & Strong scaling experiment script \\
+\texttt{run\_weak\_scaling\_aimos.slurm} & Weak scaling experiment script \\
+\texttt{plot\_scaling.py} & Converts CSV timing output into report plots \\
+\hline
+\end{tabular}
+\end{center}
+
+To build and test the serial code:
+
+\begin{lstlisting}
+make clean
+make
+make test
+\end{lstlisting}
+
+To build and run the MPI code on a system with MPI loaded:
+
+\begin{lstlisting}
+make pokemon_battle_mpi
+mpirun -np 4 ./pokemon_battle_mpi 256 256 100 4320
+\end{lstlisting}
+
+The MPI program prints a human-readable timing summary and a CSV line. The CSV line is used by the scaling scripts to collect \texttt{ranks}, \texttt{rows}, \texttt{cols}, \texttt{steps}, total time, communication time, computation time, and the serial correctness result.
+
+\item \section*{Serial Simulation Model and Correctness}
+
+The serial model stores each cell as an unsigned 8-bit type ID. The type IDs are:
+\[
+\begin{aligned}
+\text{Normal, Fire, Water, Electric, Grass, Ice, Fighting, Poison, Ground,} \\
+\text{Flying, Psychic, Bug, Rock, Ghost, Dragon, Dark, Steel, Fairy.}
+\end{aligned}
+\]
+
+The effectiveness table is represented as an $18 \times 18$ integer matrix. Rows are attacking types and columns are defending types. The values are:
+\[
+0 = \text{no effect}, \quad 50 = \text{not very effective}, \quad 100 = \text{normal}, \quad 200 = \text{super effective}.
+\]
+
+Each timestep uses the eight neighboring cells around a center cell. Same-type neighbors add support pressure to the center type. Different-type neighbors add attack pressure according to the attacker's effectiveness against the center type. If one opposing type exceeds the center's support by a threshold, the cell changes ownership to that type. If the center has enough same-type support, it remains stable. Rare evolution events are checked before ordinary takeover. For example, a Normal center with nearby Fire, Water, Grass, and Electric support evolves into Dragon.
+
+Correctness is tested in \texttt{pokemon\_battle\_tests.c}. The tests check:
+\begin{enumerate}
+\item the full $18 \times 18$ type-effectiveness chart,
+\item individual no-effect, half-effect, normal, and super-effective examples,
+\item takeover by a stronger neighboring type,
+\item stability from same-type support,
+\item rare Dragon and Steel evolution patterns,
+\item double-buffered timestepping so updates use only the old grid.
+\end{enumerate}
+
+\item \section*{Parallel Algorithm: MPI}
+
+The current parallel version uses one-dimensional row decomposition. Rank 0 initializes the global grid and distributes contiguous row blocks with \texttt{MPI\_Scatterv}. Each rank stores its local rows plus two ghost rows: one above and one below. At every timestep, each rank exchanges boundary rows with its vertical neighbors using \texttt{MPI\_Sendrecv}. After the halo exchange, each rank updates only its owned rows, leaving ghost rows as communication buffers.
+
+The pseudocode is:
+
+\begin{lstlisting}[language=C]
+MPI_Init()
+rank, nprocs = MPI rank information
+rank 0 initializes global grid
+MPI_Scatterv global rows to each rank
+
+for step in 0..steps-1:
+    exchange top real row with rank-1
+    exchange bottom real row with rank+1
+    for each owned local row:
+        for each column:
+            next[cell] = pokemon_next_cell_bounded(...)
+    swap current and next
+
+MPI_Gatherv final rows to rank 0
+rank 0 compares MPI result against serial result
+MPI_Finalize()
+\end{lstlisting}
+
+The communication time is measured around halo exchange, and computation time is measured around the local cell update loop. The total time includes all iterations after the initial scatter and before the final gather. The rank-maximum time is reported because the slowest rank determines the parallel step completion time.
+
+\item \section*{CUDA Extension Plan}
+
+The code is structured so that the local row update loop can be replaced by a CUDA kernel in a future hybrid MPI+CUDA version. Each CUDA thread would update one owned cell. The device would store the current grid, next grid, and the 18 by 18 effectiveness table. MPI would still exchange ghost rows between ranks, while CUDA would accelerate the per-cell update inside each rank. The intended comparison is CPU-only MPI versus hybrid MPI+CUDA.
+
+\item \section*{Experimental Setup}
+
+Experiments are intended to run on AiMOS using MPI. The MPI executable is built with:
+
+\begin{lstlisting}
+make pokemon_battle_mpi
+\end{lstlisting}
+
+For correctness smoke tests, we run small grids with several rank counts:
+
+\begin{lstlisting}
+mpirun -np 1 ./pokemon_battle_mpi 8 12 3 4320
+mpirun -np 2 ./pokemon_battle_mpi 8 12 3 4320
+mpirun -np 4 ./pokemon_battle_mpi 8 12 3 4320
+\end{lstlisting}
+
+Each run should report \texttt{Serial check = PASS}. For performance experiments, the scripts write CSV files under \texttt{results/}. Strong scaling holds the total grid fixed while increasing the number of ranks. Weak scaling keeps rows per rank fixed while increasing the total number of rows proportionally to the number of ranks.
+
+\item \section*{Strong Scaling Parallel Performance}
+
+Strong scaling measures whether runtime decreases as more ranks are applied to the same total problem size. Our default script uses a fixed grid size and rank counts of 1, 2, 4, 8, 16, and 32:
+
+\begin{lstlisting}
+sbatch run_strong_scaling_aimos.slurm
+\end{lstlisting}
+
+\begin{center}
+\IfFileExists{plots/strong_scaling.png}
+{\includegraphics[width=14cm]{plots/strong_scaling.png}}
+{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch run\_strong\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/strong\_scaling.png}.}}}
+\end{center}
+
+Expected discussion points: total runtime should decrease at first as computation is divided across more ranks. At higher rank counts, communication overhead from halo exchange may reduce the speedup because each rank owns fewer rows but still exchanges boundary data every timestep.
+
+\item \section*{Weak Scaling Parallel Performance}
+
+Weak scaling measures whether runtime stays stable as the problem size grows with the number of ranks. Our default script keeps a fixed number of rows per rank and increases the global number of rows with the rank count:
+
+\begin{lstlisting}
+sbatch run_weak_scaling_aimos.slurm
+\end{lstlisting}
+
+\begin{center}
+\IfFileExists{plots/weak_scaling.png}
+{\includegraphics[width=14cm]{plots/weak_scaling.png}}
+{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch run\_weak\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/weak\_scaling.png}.}}}
+\end{center}
+
+Expected discussion points: ideal weak scaling would keep total runtime nearly constant. Runtime may increase because more ranks create more MPI messages and synchronization points, and because the rank with the maximum runtime controls the reported step time.
+
+\item \section*{Analysis and Discussion}
+
+The main quantities to analyze are total runtime, communication time, computation time, speedup, and efficiency. Strong scaling speedup can be computed as:
+\[
+S_p = \frac{T_1}{T_p}
+\]
+where $T_1$ is the one-rank runtime and $T_p$ is the runtime on $p$ ranks. Strong scaling efficiency is:
+\[
+E_p = \frac{S_p}{p}.
+\]
+
+For weak scaling, the ideal result is constant runtime as $p$ increases while the work per rank remains constant. If weak scaling time increases, likely causes include halo exchange overhead, synchronization imbalance, cache effects, and rank-to-rank load differences when rows are not perfectly divisible.
+
+\item \section*{Conclusions and Future Work}
+
+This project demonstrates a non-embarrassingly-parallel cellular automaton with a richer state space than Conway's Game of Life. The serial implementation establishes correctness through a full type-chart test and targeted rule tests. The MPI implementation introduces row-based domain decomposition and halo exchange, making the dependency between neighboring partitions explicit.
+
+Future work includes adding a CUDA kernel for local cell updates, comparing CPU-only MPI against MPI+CUDA, expanding the initial-condition generator, adding checkpoint output through MPI I/O, and running larger experiments across multiple AiMOS nodes.
+
+\item \section*{References}
+
+\begin{thebibliography}{10}
+
+\bibitem{mpi41}
+Message Passing Interface Forum. \textit{MPI: A Message-Passing Interface Standard Version 4.1}. \url{https://www.mpi-forum.org/docs/mpi-4.1/}
+
+\bibitem{llnlmpi}
+Blaise Barney, Lawrence Livermore National Laboratory. \textit{Message Passing Interface (MPI) Tutorial}. \url{https://hpc-tutorials.llnl.gov/mpi/}
+
+\bibitem{cuda}
+NVIDIA. \textit{CUDA Programming Guide}. \url{https://docs.nvidia.com/cuda/cuda-programming-guide/index.html}
+
+\bibitem{aimos}
+Rensselaer Center for Computational Innovations. \textit{Artificial Intelligence Multiprocessing Optimized System (AiMOS)}. \url{https://cci.rpi.edu/aimos}
+
+\bibitem{foci}
+Rensselaer Future of Computing Institute. \textit{Center for Computational Innovations}. \url{https://foci.rpi.edu/computing-resources/center-computational-innovations}
+
+\bibitem{pokemonchart}
+Bulbapedia. \textit{Type/Type chart}. \url{https://bulbapedia.bulbagarden.net/wiki/Type/Type_chart}
+
+\bibitem{pokemontype}
+Bulbapedia. \textit{Type}. \url{https://bulbapedia.bulbagarden.net/wiki/Type}
+
+\bibitem{gameoflife}
+Martin Gardner. ``Mathematical Games: The fantastic combinations of John Conway's new solitaire game `life'.'' \textit{Scientific American}, 1970.
+
+\bibitem{golbook}
+Andrew Adamatzky, editor. \textit{Game of Life Cellular Automata}. Springer, 2010.
+
+\bibitem{stencil}
+Matthias M. Mueller and Michael M. Resch. ``Analysis of Stencil Codes on Cache-Based Architectures.'' \textit{Proceedings of the International Conference on Computational Science}, 2001.
+
+\bibitem{halo}
+E3SM Omega Documentation. \textit{Halo Exchanges}. \url{https://portal.nersc.gov/project/e3sm/sbrus/vert_coord/html/devGuide/Halo.html}
+
+\end{thebibliography}
+
+\end{enumerate}
+
+\end{document}
