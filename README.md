@@ -51,9 +51,10 @@ mpirun -np 4 ./pokemon_battle_mpi 256 256 100 4320
 ```
 
 This version splits the 2D grid by rows, exchanges one top and one bottom ghost
-row each iteration with `MPI_Sendrecv`, times communication separately from
-computation, gathers the final grid on rank 0, and checks it against the serial
-core for correctness.
+row each iteration with nonblocking `MPI_Irecv`/`MPI_Isend` plus `MPI_Waitall`,
+overlaps interior-row computation while halos are in flight, times communication
+separately from computation, gathers the final grid on rank 0, and checks it
+against the serial core for correctness.
 
 An AiMOS SLURM starter script is included:
 

@@ -109,71 +109,118 @@ static void compute_row_counts(size_t rows,
     }
 }
 
-static void exchange_halos(PokemonGrid *local_with_halo,
-                           size_t local_rows,
-                           int rank,
-                           int nprocs,
-                           double *comm_seconds)
+static void post_halo_exchange(const PokemonGrid *local_with_halo,
+                               size_t local_rows,
+                               int rank,
+                               int nprocs,
+                               MPI_Request reqs[4],
+                               int *req_count)
 {
     const int up = rank - 1;
     const int down = rank + 1;
-    ticks start = aimos_clock_read();
+    int count = 0;
     int rc;
 
     if (rank > 0) {
-        rc = MPI_Sendrecv(local_with_halo->cells + local_with_halo->cols,
-                          (int)local_with_halo->cols,
-                          MPI_UNSIGNED_CHAR,
-                          up,
-                          100,
-                          local_with_halo->cells,
-                          (int)local_with_halo->cols,
-                          MPI_UNSIGNED_CHAR,
-                          up,
-                          200,
-                          MPI_COMM_WORLD,
-                          MPI_STATUS_IGNORE);
-        mpi_fail(rc, "upper halo exchange", rank);
+        rc = MPI_Irecv((void *)local_with_halo->cells,
+                       (int)local_with_halo->cols,
+                       MPI_UNSIGNED_CHAR,
+                       up,
+                       200,
+                       MPI_COMM_WORLD,
+                       &reqs[count++]);
+        mpi_fail(rc, "MPI_Irecv upper halo", rank);
+
+        rc = MPI_Isend((void *)(local_with_halo->cells + local_with_halo->cols),
+                       (int)local_with_halo->cols,
+                       MPI_UNSIGNED_CHAR,
+                       up,
+                       100,
+                       MPI_COMM_WORLD,
+                       &reqs[count++]);
+        mpi_fail(rc, "MPI_Isend upper interior row", rank);
     }
 
     if (rank < nprocs - 1) {
-        rc = MPI_Sendrecv(local_with_halo->cells + local_rows * local_with_halo->cols,
-                          (int)local_with_halo->cols,
-                          MPI_UNSIGNED_CHAR,
-                          down,
-                          200,
-                          local_with_halo->cells + (local_rows + 1) * local_with_halo->cols,
-                          (int)local_with_halo->cols,
-                          MPI_UNSIGNED_CHAR,
-                          down,
-                          100,
-                          MPI_COMM_WORLD,
-                          MPI_STATUS_IGNORE);
-        mpi_fail(rc, "lower halo exchange", rank);
+        rc = MPI_Irecv((void *)(local_with_halo->cells + (local_rows + 1) * local_with_halo->cols),
+                       (int)local_with_halo->cols,
+                       MPI_UNSIGNED_CHAR,
+                       down,
+                       100,
+                       MPI_COMM_WORLD,
+                       &reqs[count++]);
+        mpi_fail(rc, "MPI_Irecv lower halo", rank);
+
+        rc = MPI_Isend((void *)(local_with_halo->cells + local_rows * local_with_halo->cols),
+                       (int)local_with_halo->cols,
+                       MPI_UNSIGNED_CHAR,
+                       down,
+                       200,
+                       MPI_COMM_WORLD,
+                       &reqs[count++]);
+        mpi_fail(rc, "MPI_Isend lower interior row", rank);
     }
 
-    *comm_seconds += ticks_to_seconds(aimos_clock_read() - start);
+    *req_count = count;
 }
 
-static void update_local_rows(const PokemonGrid *current,
-                              PokemonGrid *next,
-                              size_t local_rows,
-                              int rank,
-                              int nprocs,
-                              double *compute_seconds)
+static void update_row_range(const PokemonGrid *current,
+                             PokemonGrid *next,
+                             size_t row_start,
+                             size_t row_end,
+                             size_t min_row,
+                             size_t max_row)
 {
-    size_t min_row = (rank == 0) ? 1 : 0;
-    size_t max_row = (rank == nprocs - 1) ? local_rows + 1 : local_rows + 2;
-    ticks start = aimos_clock_read();
+    if (row_start > row_end) {
+        return;
+    }
 
-    for (size_t r = 1; r <= local_rows; r++) {
+    for (size_t r = row_start; r <= row_end; r++) {
         for (size_t c = 0; c < current->cols; c++) {
             pokemon_grid_set(next, r, c,
                              pokemon_next_cell_bounded(current, r, c, min_row, max_row));
         }
     }
+}
 
-    *compute_seconds += ticks_to_seconds(aimos_clock_read() - start);
+static void update_local_rows_with_overlap(const PokemonGrid *current,
+                                           PokemonGrid *next,
+                                           size_t local_rows,
+                                           int rank,
+                                           int nprocs,
+                                           double *comm_seconds,
+                                           double *compute_seconds)
+{
+    const size_t min_row = (rank == 0) ? 1 : 0;
+    const size_t max_row = (rank == nprocs - 1) ? local_rows + 1 : local_rows + 2;
+    MPI_Request reqs[4];
+    int req_count = 0;
+
+    ticks comm_start = aimos_clock_read();
+    post_halo_exchange(current, local_rows, rank, nprocs, reqs, &req_count);
+    *comm_seconds += ticks_to_seconds(aimos_clock_read() - comm_start);
+
+    ticks compute_start = aimos_clock_read();
+    if (local_rows > 2) {
+        update_row_range(current, next, 2, local_rows - 1, min_row, max_row);
+    }
+    *compute_seconds += ticks_to_seconds(aimos_clock_read() - compute_start);
+
+    comm_start = aimos_clock_read();
+    if (req_count > 0) {
+        int rc = MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
+        mpi_fail(rc, "MPI_Waitall halo exchange", rank);
+    }
+    *comm_seconds += ticks_to_seconds(aimos_clock_read() - comm_start);
+
+    compute_start = aimos_clock_read();
+    if (local_rows >= 1) {
+        update_row_range(current, next, 1, 1, min_row, max_row);
+        if (local_rows > 1) {
+            update_row_range(current, next, local_rows, local_rows, min_row, max_row);
+        }
+    }
+    *compute_seconds += ticks_to_seconds(aimos_clock_read() - compute_start);
 }
 
 static int compare_grids(const PokemonGrid *a, const PokemonGrid *b)
@@ -269,8 +316,8 @@ int main(int argc, char **argv)
     double compute_seconds = 0.0;
 
     for (int step = 0; step < steps; step++) {
-        exchange_halos(&current, local_rows, rank, nprocs, &comm_seconds);
-        update_local_rows(&current, &next, local_rows, rank, nprocs, &compute_seconds);
+        update_local_rows_with_overlap(&current, &next, local_rows, rank, nprocs,
+                                       &comm_seconds, &compute_seconds);
 
         uint8_t *tmp = current.cells;
         current.cells = next.cells;
