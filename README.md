@@ -35,7 +35,7 @@ include MPI, CUDA, or scaling experiments.
 
 Person 2 starter code is implemented in:
 
-- `pokemon_battle_mpi.c`
+- `mpi/pokemon_battle_mpi.c`
 
 Build:
 
@@ -59,7 +59,7 @@ against the serial core for correctness.
 An AiMOS SLURM starter script is included:
 
 ```sh
-sbatch run_pokemon_mpi_aimos.slurm
+sbatch mpi/run_pokemon_mpi_aimos.slurm
 ```
 
 Before submitting, uncomment or adjust the `module load` lines in the script to
@@ -76,13 +76,13 @@ make report
 Strong scaling on AiMOS:
 
 ```sh
-sbatch run_strong_scaling_aimos.slurm
+sbatch mpi/run_strong_scaling_aimos.slurm
 ```
 
 Weak scaling on AiMOS:
 
 ```sh
-sbatch run_weak_scaling_aimos.slurm
+sbatch mpi/run_weak_scaling_aimos.slurm
 ```
 
 After the CSV files exist in `results/`, generate plots:

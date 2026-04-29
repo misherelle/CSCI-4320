@@ -75,10 +75,10 @@ The codebase is organized around a serial core, an MPI driver, correctness tests
 \texttt{pokemon\_battle\_core.h/c} & Type IDs, effectiveness matrix, grid helpers, update rules \\
 \texttt{pokemon\_battle\_tests.c} & Serial correctness tests for rules and the full type chart \\
 \texttt{pokemon\_battle\_demo.c} & Small serial visualization/demo runner \\
-\texttt{pokemon\_battle\_mpi.c} & MPI row decomposition, halo exchange, timing, serial check \\
+\texttt{mpi/pokemon\_battle\_mpi.c} & MPI row decomposition, halo exchange, timing, serial check \\
 \texttt{Makefile} & Build and test targets \\
-\texttt{run\_strong\_scaling\_aimos.slurm} & Strong scaling experiment script \\
-\texttt{run\_weak\_scaling\_aimos.slurm} & Weak scaling experiment script \\
+\texttt{mpi/run\_strong\_scaling\_aimos.slurm} & Strong scaling experiment script \\
+\texttt{mpi/run\_weak\_scaling\_aimos.slurm} & Weak scaling experiment script \\
 \texttt{plot\_scaling.py} & Converts CSV timing output into report plots \\
 \hline
 \end{tabular}
@@ -182,13 +182,13 @@ Each run should report \texttt{Serial check = PASS}. For performance experiments
 Strong scaling measures whether runtime decreases as more ranks are applied to the same total problem size. Our default script uses a fixed grid size and rank counts of 1, 2, 4, 8, 16, and 32:
 
 \begin{lstlisting}
-sbatch run_strong_scaling_aimos.slurm
+sbatch mpi/run_strong_scaling_aimos.slurm
 \end{lstlisting}
 
 \begin{center}
 \IfFileExists{plots/strong_scaling.png}
 {\includegraphics[width=14cm]{plots/strong_scaling.png}}
-{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch run\_strong\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/strong\_scaling.png}.}}}
+{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch mpi/run\_strong\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/strong\_scaling.png}.}}}
 \end{center}
 
 Expected discussion points: total runtime should decrease at first as computation is divided across more ranks. At higher rank counts, communication overhead from halo exchange may reduce the speedup because each rank owns fewer rows but still exchanges boundary data every timestep.
@@ -198,13 +198,13 @@ Expected discussion points: total runtime should decrease at first as computatio
 Weak scaling measures whether runtime stays stable as the problem size grows with the number of ranks. Our default script keeps a fixed number of rows per rank and increases the global number of rows with the rank count:
 
 \begin{lstlisting}
-sbatch run_weak_scaling_aimos.slurm
+sbatch mpi/run_weak_scaling_aimos.slurm
 \end{lstlisting}
 
 \begin{center}
 \IfFileExists{plots/weak_scaling.png}
 {\includegraphics[width=14cm]{plots/weak_scaling.png}}
-{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch run\_weak\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/weak\_scaling.png}.}}}
+{\fbox{\parbox{13cm}{Placeholder: run \texttt{sbatch mpi/run\_weak\_scaling\_aimos.slurm} and \texttt{python3 plot\_scaling.py} to generate \texttt{plots/weak\_scaling.png}.}}}
 \end{center}
 
 Expected discussion points: ideal weak scaling would keep total runtime nearly constant. Runtime may increase because more ranks create more MPI messages and synchronization points, and because the rank with the maximum runtime controls the reported step time.

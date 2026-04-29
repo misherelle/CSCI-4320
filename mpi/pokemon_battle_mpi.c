@@ -8,7 +8,7 @@
   - correctness check against the serial core on rank 0 for small/medium runs
 */
 
-#include "pokemon_battle_core.h"
+#include "../pokemon_battle_core.h"
 
 #include <mpi.h>
 #include <stdint.h>

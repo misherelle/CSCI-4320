@@ -1,0 +1,3 @@
+ranks,rows,cols,steps,total_seconds,comm_seconds,compute_seconds,serial_check
+4,256,256,100,0.196338020,0.058199289,0.195186068,PASS
+1,1024,1024,100,9.482816609,0.000006189,9.482785387,PASS
