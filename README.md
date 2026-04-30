@@ -41,6 +41,11 @@ Run the demo:
 ```
 
 ## MPI build and run
+Load Modules first
+```sh
+module load xl_r spectrum-mpi cuda
+```
+
 
 Build the MPI executable (writes `pokemon_battle_mpi` in the repo root):
 
@@ -65,9 +70,6 @@ sbatch mpi/run_strong_scaling_aimos.slurm
 sbatch mpi/run_weak_scaling_aimos.slurm
 ```
 
-adjust `module load` lines inside those scripts to match your AiMOS
-environment.
-
 ### Run scaling scripts without `sbatch`
 
 On a login node or inside an interactive allocation (`salloc`, etc.):
@@ -90,20 +92,6 @@ This runs `run-serial`, then `run-weak`, then `run-strong` (each invokes `bash`
 on the `mpi/*.slurm` scripts). Individual targets: `make run-serial`,
 `make run-weak`, `make run-strong`.
 
-After `results/strong_scaling.csv` and/or `results/weak_scaling.csv` exist:
-
-```sh
-make plots
-```
-
-or:
-
-```sh
-python3 plot_scaling.py
-```
-
-The report expects `plots/strong_scaling.png` and `plots/weak_scaling.png` when
-those CSVs have been generated.
 
 ## Copying to AiMOS from your laptop
 
