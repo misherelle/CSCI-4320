@@ -14,7 +14,7 @@ run_test () {
 
     echo "Running $EXPERIMENT: ranks=$RANKS grid=${ROWS}x${COLS} steps=$STEPS"
 
-    mpirun -np "$RANKS" ./pokemon_battle_mpi_cuda "$ROWS" "$COLS" "$STEPS" "$SEED" \
+    mpirun -np "$RANKS" ../pokemon_battle_mpi_cuda "$ROWS" "$COLS" "$STEPS" "$SEED" \
         | grep "^CSV" \
         | awk -v experiment="$EXPERIMENT" -F, \
         '{print experiment "," $2 "," $3 "," $4 "," $5 "," $6 "," $7 "," $8 "," $9}' \

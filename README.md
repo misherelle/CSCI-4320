@@ -129,14 +129,21 @@ module load xl_r spectrum-mpi cuda
 
 ### Build
 
-From the repository root:
+Build the MPI + CUDA executable:
 
 ```sh
-mpicc -c pokemon_battle_core.c -o pokemon_battle_core.o
-nvcc -c "mpi + cuda/pokemon_battle_cuda.cu" -o pokemon_battle_cuda.o
-mpicxx "mpi + cuda/pokemon_battle_mpi.c" pokemon_battle_core.o pokemon_battle_cuda.o \
-  -L/usr/local/cuda-11.0/lib64 -lcudart \
-  -o pokemon_battle_mpi_cuda
+make cuda
+```
+
+This compiles:
+- pokemon_battle_core.c → CPU logic
+- pokemon_battle_cuda.cu → GPU kernel
+- pokemon_battle_mpi_cuda.c → MPI driver
+
+and produces:
+
+```sh
+pokemon_battle_mpi_cuda
 ```
 
 ---
@@ -152,12 +159,24 @@ mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100 4320
 
 ### Run scaling tests
 
-A helper script runs correctness, strong scaling, weak scaling, and timestep scaling:
+First build the CUDA executable from the repository root:
+
+```sh
+make cuda
+```
+
+Then run the scaling script from inside the MPI + CUDA directory:
 
 ```sh
 cd "mpi + cuda"
 chmod +x run_cuda_scaling.sh
 ./run_cuda_scaling.sh
+```
+
+The script calls the executable from the repository root using:
+
+```sh
+../pokemon_battle_mpi_cuda
 ```
 
 Results are saved to:

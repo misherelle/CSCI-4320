@@ -1,8 +1,11 @@
 CC ?= gcc
 MPICC ?= mpicc
+MPICXX ?= mpicxx
+NVCC ?= nvcc
+CUDA_PATH ?= /usr/local/cuda-11.0
 CFLAGS ?= -std=c11 -Wall -Wextra -O2
 
-.PHONY: all test report plots run-serial run-weak run-strong all-tests clean
+.PHONY: all test report plots run-serial run-weak run-strong run-cuda all-tests clean cuda
 
 all: pokemon_battle_demo pokemon_battle_tests
 
@@ -14,6 +17,18 @@ pokemon_battle_tests: pokemon_battle_tests.c pokemon_battle_core.c pokemon_battl
 
 pokemon_battle_mpi: mpi/pokemon_battle_mpi.c pokemon_battle_core.c pokemon_battle_core.h
 	$(MPICC) $(CFLAGS) mpi/pokemon_battle_mpi.c pokemon_battle_core.c -o pokemon_battle_mpi
+
+pokemon_battle_core.o: pokemon_battle_core.c pokemon_battle_core.h
+	$(MPICC) $(CFLAGS) -c pokemon_battle_core.c -o pokemon_battle_core.o
+
+pokemon_battle_cuda.o: mpi\ +\ cuda/pokemon_battle_cuda.cu mpi\ +\ cuda/pokemon_battle_cuda.h pokemon_battle_core.h
+	$(NVCC) -I. -c "mpi + cuda/pokemon_battle_cuda.cu" -o pokemon_battle_cuda.o
+
+pokemon_battle_mpi_cuda: mpi\ +\ cuda/pokemon_battle_mpi_cuda.c pokemon_battle_core.o pokemon_battle_cuda.o pokemon_battle_core.h mpi\ +\ cuda/pokemon_battle_cuda.h
+	$(MPICXX) -I. "mpi + cuda/pokemon_battle_mpi_cuda.c" pokemon_battle_core.o pokemon_battle_cuda.o \
+		-L$(CUDA_PATH)/lib64 -lcudart -o pokemon_battle_mpi_cuda
+		
+cuda: pokemon_battle_mpi_cuda
 
 test: pokemon_battle_tests
 	./pokemon_battle_tests
@@ -38,6 +53,10 @@ run-strong:
 	@echo "=== Running strong scaling ==="
 	@bash mpi/run_strong_scaling_aimos.slurm
 
+run-cuda: pokemon_battle_mpi_cuda
+	@echo "=== Running MPI + CUDA scaling ==="
+	@cd "mpi + cuda" && bash run_cuda_scaling.sh
+
 all-tests: run-serial run-weak run-strong
 	@echo "=== Completed serial + weak + strong runs ==="
 
@@ -46,4 +65,6 @@ report: group-project-report.tex
 	pdflatex group-project-report.tex
 
 clean:
-	rm -f pokemon_battle_demo pokemon_battle_tests pokemon_battle_mpi report.aux report.log report.out report.pdf group-project-report.aux group-project-report.log group-project-report.out group-project-report.pdf
+	rm -f pokemon_battle_demo pokemon_battle_tests pokemon_battle_mpi pokemon_battle_mpi_cuda \
+		pokemon_battle_core.o pokemon_battle_cuda.o \
+		group-project-report.aux group-project-report.log group-project-report.out group-project-report.pdf
