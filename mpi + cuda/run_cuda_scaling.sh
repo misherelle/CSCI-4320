@@ -1,6 +1,6 @@
 #!/bin/bash
 
-OUT="cuda_scaling_results.csv"
+OUT="mpicuda_results.csv"
 
 echo "experiment,ranks,rows,cols,steps,total_sec,comm_sec,compute_sec,check" > "$OUT"
 
