@@ -117,8 +117,95 @@ endings for those files when using Git with appropriate settings.
 
 ## MPI + CUDA
 
-See `mpi + cuda/` for the hybrid sources and batch/shell helpers. Build steps
-depend on your module stack; follow course notes for `nvcc` and MPI wrappers.
+The MPI + CUDA implementation combines row-based MPI domain decomposition with GPU acceleration for local cell updates.
+
+### Load Modules (AiMOS)
+
+module load xl_r spectrum-mpi cuda
+
+---
+
+### Build
+
+From the repository root:
+
+mpicc -c pokemon_battle_core.c -o pokemon_battle_core.o
+nvcc -c "mpi + cuda/pokemon_battle_cuda.cu" -o pokemon_battle_cuda.o
+mpicxx "mpi + cuda/pokemon_battle_mpi.c" pokemon_battle_core.o pokemon_battle_cuda.o \
+  -L/usr/local/cuda-11.0/lib64 -lcudart \
+  -o pokemon_battle_mpi_cuda
+
+---
+
+### Run (manual)
+
+mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100
+mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100 4320
+
+---
+
+### Run scaling tests
+
+A helper script runs correctness, strong scaling, weak scaling, and timestep scaling:
+
+cd "mpi + cuda"
+chmod +x run_cuda_scaling.sh
+./run_cuda_scaling.sh
+
+Results are saved to:
+
+mpicuda_results.csv
+
+---
+
+### SLURM on AiMOS (recommended)
+
+Example batch script:
+
+#!/bin/bash
+#SBATCH -J pokemon_cuda
+#SBATCH -N 1
+#SBATCH -n 4
+#SBATCH --gres=gpu:4
+#SBATCH -t 00:30:00
+#SBATCH --partition=dcs-2024
+#SBATCH -o pokemon_cuda_%j.out
+#SBATCH -e pokemon_cuda_%j.err
+
+cd ~/scratch/pokemon_project
+./run_cuda_scaling.sh
+
+Submit:
+
+sbatch run_cuda_scaling.sbatch
+
+Check job:
+
+squeue -u $USER
+
+Cancel job:
+
+scancel <jobid>
+
+---
+
+### Output
+
+Each run prints:
+
+CSV,ranks,rows,cols,steps,total_sec,comm_sec,compute_sec,check
+
+All results are aggregated into:
+
+mpicuda_results.csv
+
+---
+
+### Notes
+
+- Requires GPU-enabled nodes on AiMOS
+- All runs validated with serial correctness check (PASS)
+- Scaling experiments were performed up to 4 ranks to match available GPU resources
 
 ## Clean
 
