@@ -41,9 +41,9 @@ run-strong:
 all-tests: run-serial run-weak run-strong
 	@echo "=== Completed serial + weak + strong runs ==="
 
-report: report.tex
-	pdflatex report.tex
-	pdflatex report.tex
+report: group-project-report.tex
+	pdflatex group-project-report.tex
+	pdflatex group-project-report.tex
 
 clean:
-	rm -f pokemon_battle_demo pokemon_battle_tests pokemon_battle_mpi report.aux report.log report.out report.pdf
+	rm -f pokemon_battle_demo pokemon_battle_tests pokemon_battle_mpi group-project-report.aux group-project-report.log group-project-report.out group-project-report.pdf
