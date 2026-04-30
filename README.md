@@ -1,8 +1,11 @@
 # CSCI-4320
 
-Parallel Programming and Computing coursework plus the group project: serial
-simulation core, MPI row decomposition, optional MPI+CUDA sources, and scaling
-experiments.
+Parallel Programming Final Project
+by Angela Immanuel
+Michael Lam
+Dillon Li
+Michelle Li
+
 
 Run all commands below from the repository root (the directory that contains
 `Makefile`).
