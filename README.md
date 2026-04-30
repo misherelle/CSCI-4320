@@ -121,7 +121,9 @@ The MPI + CUDA implementation combines row-based MPI domain decomposition with G
 
 ### Load Modules (AiMOS)
 
+```sh
 module load xl_r spectrum-mpi cuda
+```
 
 ---
 
@@ -129,18 +131,22 @@ module load xl_r spectrum-mpi cuda
 
 From the repository root:
 
+```sh
 mpicc -c pokemon_battle_core.c -o pokemon_battle_core.o
 nvcc -c "mpi + cuda/pokemon_battle_cuda.cu" -o pokemon_battle_cuda.o
 mpicxx "mpi + cuda/pokemon_battle_mpi.c" pokemon_battle_core.o pokemon_battle_cuda.o \
   -L/usr/local/cuda-11.0/lib64 -lcudart \
   -o pokemon_battle_mpi_cuda
+```
 
 ---
 
 ### Run (manual)
 
+```sh
 mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100
 mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100 4320
+```
 
 ---
 
@@ -148,13 +154,17 @@ mpirun -np 4 ./pokemon_battle_mpi_cuda 256 256 100 4320
 
 A helper script runs correctness, strong scaling, weak scaling, and timestep scaling:
 
+```sh
 cd "mpi + cuda"
 chmod +x run_cuda_scaling.sh
 ./run_cuda_scaling.sh
+```
 
 Results are saved to:
 
+```sh
 mpicuda_results.csv
+```
 
 ---
 
@@ -162,6 +172,7 @@ mpicuda_results.csv
 
 Example batch script:
 
+```sh
 #!/bin/bash
 #SBATCH -J pokemon_cuda
 #SBATCH -N 1
@@ -174,18 +185,25 @@ Example batch script:
 
 cd ~/scratch/pokemon_project
 ./run_cuda_scaling.sh
+```
 
 Submit:
 
+```sh
 sbatch run_cuda_scaling.sbatch
+```
 
 Check job:
 
+```sh
 squeue -u $USER
+```
 
 Cancel job:
 
+```sh
 scancel <jobid>
+```
 
 ---
 
@@ -197,7 +215,9 @@ CSV,ranks,rows,cols,steps,total_sec,comm_sec,compute_sec,check
 
 All results are aggregated into:
 
+```sh
 mpicuda_results.csv
+```
 
 ---
 
