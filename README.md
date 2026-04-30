@@ -1,9 +1,9 @@
 # CSCI-4320
 
 Parallel Programming Final Project
-by Angela Immanuel
-Michael Lam
-Dillon Li
+by Angela Imanuel,
+Michael Lam,
+Dillon Li,
 Michelle Li
 
 
