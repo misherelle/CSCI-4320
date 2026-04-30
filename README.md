@@ -21,7 +21,7 @@ Run all commands below from the repository root (the directory that contains
 | `mpi + cuda/` | Hybrid MPI+CUDA sources and CUDA run scripts |
 | `results/` | CSV output from scaling runs (created by scripts) |
 | `plots/` | PNG figures from `plot_scaling.py` |
-| `mpidata/` | Example or archived CSV data (optional) |
+| `data/` | Data for the MPI only and MPI+CUDA runs |
 
 ## Serial core
 
