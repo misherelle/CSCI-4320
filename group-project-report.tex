@@ -42,7 +42,7 @@
   {\thesection}{1em}{}
 \titlespacing*{\section}{0pt}{1.2ex plus 0.4ex minus 0.2ex}{0.8ex plus 0.2ex}
 
-\usepackage{upquote,textcomp}
+\usepackage{upquote}
 \usepackage{amssymb,amsmath,amsfonts,amsthm}
 \usepackage{graphicx}
 \usepackage{multicol}
@@ -50,6 +50,8 @@
 \usetikzlibrary{automata,positioning}
 \usepackage{tikz-qtree}
 \usepackage{array}
+\hyphenpenalty=10000
+
 
 \begin{document}
 
@@ -383,7 +385,7 @@ Strong scaling measures whether runtime decreases as more ranks are applied to t
 }
 \caption{Strong scaling results for MPI+CUDA for 1024 $\times$ 1024 grid over 100 timesteps.}
 \end{table*}
-For the MPI-only implementation, runtime significantly decreases as the number of ranks increases from 1 to 4, which demonstrates near-linear speedup at lower ranks. This indicates that the row-based domain decomposition effectively distributes computation across processes. However, at higher rank counts from 8-32, the rate of improvement slows due to increased communication overhead. Each rank exchanges halo rows with its neighbors at every timestep, and as the number of ranks increases, the relative cost of communication becomes more significant compared to computation. This corresponds to near-linear speedup at lower ranks (e.g., approximately 4x speedup at 4 ranks), indicating that computation is effectively distributed accross processes before communication overhead becomes dominant.
+For the MPI-only implementation, runtime significantly decreases as the number of ranks increases from 1 to 4, which demonstrates near-linear speedup at lower ranks. This indicates that the row-based domain decomposition effectively distributes computation across processes. However, at higher rank counts from 8-32, the rate of improvement slows due to increased communication overhead. Each rank exchanges halo rows with its neighbors at every timestep, and as the number of ranks increases, the relative cost of communication becomes more significant compared to computation. This corresponds to near-linear speedup at lower ranks (e.g., approximately 4x speedup at 4 ranks), indicating that computation is effectively distributed across processes before communication overhead becomes dominant.
 
 The MPI + CUDA implementation shows a different scaling trend. While it hits significantly lower absolute runtime compared to MPI-only (on the order of tenths of a second), its strong scaling efficiency is limited. Runtime improves slightly when increasing from 1 to 2 ranks, but increases when moving to 4 ranks. This suggests that the overhead of GPU operations, such as host-device memory transfers, kernel launches, and synchronization, begins to have a larger impact as the amount of work per rank decreases \cite{cuda}. Because each MPI rank performs these GPU operations independently every timestep, the overhead becomes more significant at higher rank counts. 
 
@@ -401,7 +403,7 @@ Overall, these results indicate that MPI-only provides better scalability, while
 \FloatBarrier
 \section*{Weak Scaling Parallel Performance}
 
-Weak scaling complements strong scaling by measuring whether the runtime stays stable as the problem increases proportionally with the growing amount of ranks \cite{llnlmpi}. In our experiments, the number of columns is fixed at 1024,while the number of rows increases proportionally with the number of ranks, maintaining a constant workload per rank.
+Weak scaling complements strong scaling by measuring whether the runtime stays stable as the problem increases proportionally with the growing amount of ranks \cite{llnlmpi}. In our experiments, the number of columns is fixed at 1024, while the number of rows increases proportionally with the number of ranks, maintaining a constant workload per rank.
 
 \begin{table*}[!tbp]
 \centering
@@ -451,7 +453,7 @@ In the MPI + CUDA results, the total runtime is much lower, at around 0.12 secon
 
 As demonstrated by Figure~\ref{fig:weak-scaling}, both our MPI and MPI + CUDA demonstrate the main property of weak scaling: a constant runtime. We can also compare that the runtime of the MPI only runs is far larger than that of the MPI + CUDA runs, aptly demonstrating the usage of GPU computations in this situation. Overall, this program is helped drastically by adding CUDA. 
 
-Overall, these results show good weak scaling behavior, as the computation per rank remains constant while communication overhead grows gradually and does not dominate total runtime.
+Overall, these results show good weak scaling behavior, as the computation per rank remains relatively similar while communication overhead grows gradually and does not dominate total runtime.
 
 \FloatBarrier
 \section*{Analysis and Discussion}
@@ -481,15 +483,22 @@ Future work includes improving the CUDA implementation by keeping device buffers
 \FloatBarrier
 \section*{Team Contributions}
 
-\begin{enumerate}
 
-\item \textbf{Angela Imanuel:} Angela developed the CUDA acceleration portion of the project. She implemented the GPU-based local update using one thread per cell, managed device memory for grid data, and ensured the type-effectiveness table was accessible on the GPU. She also worked on comparing the hybrid MPI+CUDA implementation with the CPU-only MPI version. Angela contributed to writing and refining the strong and weak scaling performance sections, as well as overall documentation.
+\textbf{Angela Imanuel:}
 
-\item \textbf{Michael Lam:} Michael focused on the MPI implementation and parallelization of the simulation. He handled the row-based domain decomposition, ghost row exchange, and boundary correctness using MPI communication routines. He also worked on separating communication and computation timing for performance analysis. In addition, Michael contributed to the strong and weak scaling performance sections of the report and helped document the implementation details.
+Angela developed the CUDA acceleration portion of the project. She implemented the GPU-based local update using one thread per cell, managed device memory for grid data, and ensured the type-effectiveness table was accessible on the GPU. She also worked on comparing the hybrid MPI+CUDA implementation with the CPU-only MPI version. Angela contributed to writing and refining the strong and weak scaling performance sections, as well as overall documentation.
 
-\item \textbf{Dillon Li:} Dillon focused on early-stage research and supporting the overall development of the project. He helped find relevant resources and references related to MPI, CUDA, and stencil-based simulations, and contributed to building the background understanding needed for the project. He also assisted with organizing materials, compiling references, and helping to make sure the final report met formatting and submission requirements, including overall presentation and structure.
+\textbf{Michael Lam:}
 
-\item \textbf{Michelle Li:} Michelle was primarily responsible for developing the core serial simulation and ensuring correctness before parallelization. She implemented the 18 Pokémon type system, including type IDs, the effectiveness matrix, and the update rules governing neighbor interactions and support. She also designed and tested rare evolution and pattern-based events, and created small test cases to validate correctness. In addition, Michelle organized the overall structure of the project, wrote the outline of the report, and created and managed the team’s GitHub repository. She also contributed to documentation throughout the project.
+Michael focused on the MPI implementation and parallelization of the simulation. He handled the row-based domain decomposition, ghost row exchange, and boundary correctness using MPI communication routines. He also worked on separating communication and computation timing for performance analysis. In addition, Michael contributed to the strong and weak scaling performance sections of the report and helped document the implementation details.
+
+\textbf{Dillon Li:}
+
+Dillon focused on early-stage research and supporting the overall development of the project. He helped find relevant resources and references related to MPI, CUDA, and stencil-based simulations, and contributed to building the background understanding needed for the project. He also assisted with organizing materials, compiling references, and helping to make sure the final report met formatting and submission requirements, including overall presentation and structure.
+
+\textbf{Michelle Li:}
+
+Michelle was primarily responsible for developing the core serial simulation and ensuring correctness before parallelization. She implemented the 18 Pokémon type system, including type IDs, the effectiveness matrix, and the update rules governing neighbor interactions and support. She also designed and tested rare evolution and pattern-based events, and created small test cases to validate correctness. In addition, Michelle organized the overall structure of the project, wrote the outline of the report, and created and managed the team’s GitHub repository. She also contributed to documentation throughout the project.
 
 
 
@@ -498,7 +507,7 @@ Future work includes improving the CUDA implementation by keeping device buffers
 % references start here
 \FloatBarrier
 
-\begin{thebibliography}{10}
+\begin{thebibliography}{14}
 
 \bibitem{mpi41}
 Message Passing Interface Forum. \textit{MPI: A Message-Passing Interface Standard Version 4.1}. \url{https://www.mpi-forum.org/docs/mpi-4.1/}
